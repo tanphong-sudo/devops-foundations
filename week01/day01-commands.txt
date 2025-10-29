@@ -1,0 +1,60 @@
+CAT COMMAND (read/write files)
+-----------------------------
+cat file.txt                 # view file content
+cat file1 file2              # view multiple files
+cat < file.txt               # stdin from file (same as cat file.txt)
+cat file.txt > file2.txt     # copy file
+echo "text" > file.txt       # overwrite file
+cat -n file.txt              # show line numbers
+
+FIND COMMAND (search files)
+---------------------------
+find <path> -name "pattern"         # search by name
+find <path> -type f                 # search files only
+find <path> -type d                 # search directories
+find <path> -maxdepth N             # limit search depth
+find <path> -size +10M              # size > 10MB
+
+I/O REDIRECTION
+----------------------
+command < file               # read stdin from file
+command > file               # write stdout to file (overwrite)
+command >> file              # append stdout to file
+
+command 2> error.log         # redirect stderr (error) to file
+command 2>> error.log        # append stderr to file
+command > out.txt 2>&1       # redirect both stdout + stderr to file
+command >> out.txt 2>&1      # append stdout + stderr to file
+
+command 1> out.txt           # explicitly redirect stdout
+command 1>> out.txt          # explicitly append stdout
+command 2>&1                 # redirect stderr to stdout
+command >& file              # redirect both stdout + stderr (same as > file 2>&1)
+
+Discard output
+--------------
+command > /dev/null          # ignore stdout
+command 2> /dev/null         # ignore stderr
+command > /dev/null 2>&1     # ignore all output
+
+PIPE (|)
+-------
+cmd1 | cmd2                  # output of cmd1 → input of cmd2
+ls -l | grep txt             # filter .txt files
+cat file.txt | wc -l         # count lines
+
+TEE COMMAND (> + show output)
+--------------------------
+command | tee file.txt               # show + save output
+command | tee -a file.txt            # append mode
+command | tee file1 file2            # write to multiple files
+command | tee file.txt > /dev/null   # (use > instead)
+
+HISTORY EXPANSION (in Bash)
+--------------------------
+History expansion allows using previous commands by starting with `!`.
+!!              # repeat last command
+!ls             # run last command that started with "ls"
+!grep           # run last command that started with "grep"
+!$              # last argument of previous command
+!*              # all arguments of previous command
