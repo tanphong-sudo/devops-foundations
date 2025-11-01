@@ -339,3 +339,174 @@ sudo yum groupinstall "Development Tools"
   2. `make` — compile the source code
   3. `sudo make install` — install the compiled program
 - Use `checkinstall` instead of `make install` so the package manager can track it -> always prefer.
+
+---
+## Devices 
+- In Linux, everything is a file, including hardware devices.
+- `/dev` store device files that represent hardware components and virtual devices.
+- `udev` automatically manages `/dev` entries when devices are added/removed, can use `udevadm` to monitor.
+**Device types:**
+- Block devices(b): trans data in blocks, used for storage (hard drives,...)
+- Character devices(c): No buffering, trans 1 data at a time (`/dev/tty`:terminal)
+- Pipe devices(p): FIFOs for inter-process communication
+- Socket devices(s): network sockets for communication (super pipes)
+**SCSI name convention:**
+- `/dev/sdX` — SCSI disk (X = a, b, c,...)
+- `/dev/sdXN` — Partition N on disk X (N = 1, 2, 3,...)
+**`sysfs`**:
+- Mounted at `/sys`, provides devices' properties live data.
+- Enables user-space programs to interact with kernel subsystems.
+**Hardware version of `ls`:**
+- `lsblk` — list block devices
+- `lspci` — list PCI devices
+- `lsusb` — list USB devices
+**`dd` command:**
+- Low-level data copy and conversion tool. Read exactly N bytes and write to output.
+-> backup/restore disk images, create bootable USB drives, benchmark disk performance.
+```bash
+dd if=<input> of=<output> bs=<block_size> count=<number_of_blocks>
+```
+---
+## Filesystems 
+- Can use `df -T` to see filesystem types.
+**Types:**
+- ext4: default for many Linux distros, journaling, large file support.
+- xfs: high-performance, scalable, good for large files.
+- btrfs: advanced features (snapshots, checksums), still maturing.
+- NTFS/FAT32: Windows compatibility.
+- HFS +: macOS compatibility.
+**Virtual filesystems:**
+- translator between applications and filesystems.
+**journaling:**
+- keeps a log of changes to prevent corruption during crashes.
+
+**GPT(GUID Partition Table):**
+- Modern partition table, tell the OS how the disk is divided, where partitions start/end and which one is bootable.
+- Format a partition with a filesystem:
+    - Boot block: help the system boot.
+    - Superblock: metadata about the filesystem (size, block count).
+    - Inodes: store file metadata (permissions, ownership, timestamps).
+    - Data blocks: store actual file data.
+
+-> When run sth like `ls` -> system read the inodes then fetch data from data blocks.
+```bash
+Disk /dev/sdb: 4GB
+Partition Table: gpt
+1  first
+2  second
+```
+**Disk partitioning:**
+- After partitioning, need to create filesystem (mkfs).
+- Cannot resize a mounted filesystem -> unmount first (umount).
+- Listing partitions: `parted -l`
+**Launching interactive mode**
+```bash
+sudo parted
+```
+**Selecting a disk**
+```bash
+(parted) select /dev/sdb
+```
+**Creating a partition**
+```bash
+mkpart primary ext4 1MB 5000MB
+```
+Creates a primary partition formatted with ext4, starting at 1MB and ending at 5000MB.
+**Create filesystem**
+```bash
+sudo mkfs -t ext4 /dev/sdb2
+```
+Creates an ext4 filesystem on the partition /dev/sdb2.
+- mkfs erases everything on that partition.
+- It doesn’t “clear space” — it overwrites all data with a new filesystem structure.
+-> Only run on new or unneeded partitions.
+
+**Mount and unmount:**
+- Need a mount point (empty dir) where the partition lives.
+```bash
+sudo mkdir /mydrive
+sudo mount -t ext4 /dev/sdb2 /mydrive
+```
+- `-t ext4`: the filesystem type.
+- To unmount:
+```bash
+sudo umount /mydrive
+or
+sudo umount /dev/sdb2
+``` 
+**Using UUIDs to mount:**
+- UUID = Universally Unique Identifier.
+- Sometimes /dev/sdb2 can change -> use UUID to avoid issues.
+```bash
+sudo blkid # get all UUID
+sudo mount <UUID> /mydrive
+```
+
+**`/etc/fstab` (filesystem table):**
+- Tell the system which filesystems to mount at boot and where. 
+- Each line: filesystem, mount point, type, options, dump, pass.
+```bash
+UUID=xxxx-xxxx  /mydrive  ext4  defaults  0  2
+```
+- `defaults`: default mount options.
+- `0`: dump (backup) option, usually 0.
+- `2`: fsck order, root is 1, others 2.
+
+**Swap**
+- Fake memory on disk when RAM is full.
+- Two ways to create swap space:
+  1. Swap partition: dedicated partition for swap.
+  2. Swap file: regular file used as swap.
+Using a partition for swap:
+```bash
+sudo mkswap /dev/sdb2 # format as swap
+sudo swapon /dev/sdb2 # enable swap
+```
+Can check with: `free -h`
+- Can edit /etc/fstab to make it permanent: 
+```bash
+UUID=xxxx-xxxx  none  swap  sw  0  0
+```
+- Turn off swap:
+```bash
+sudo swapoff /dev/sdb2
+```
+- Swap is slower than RAM, so use it only when necessary. Swap size = 2 x RAM
+
+**Disk Usage:**
+- `df -h` — disk free space on filesystems (human-readable).
+- `du -sh <dir>` — disk usage of a specific directory (summarized, human-readable).
+**Filesystem repair:**
+- `fsck` — filesystem check and repair tool.
+- Must unmount filesystem before running fsck.
+```bash
+sudo umount /dev/sdb2
+sudo fsck /dev/sdb2
+```
+- Normally, system runs fsck automatically at boot if it detects a problem.
+- If it’s your root partition, you can’t unmount it while running — that’s when a rescue/live disk is needed.
+**Inodes:**
+- A file's identity card.
+- Holds metadata (everything except the name and actual data).
+- The directory knows the name -> just points to the inode.
+- Each file has a unique inode number within its filesystem, which store:
+  - File type (regular, directory, symlink, etc.)
+  - Permissions (read, write, execute for owner, group, others)
+  - Ownership (user ID and group ID)
+  - Size (in bytes)
+  - Timestamps (creation, modification, access times)
+  - Link count (number of hard links to the file)
+  - Pointers to data blocks on disk where the actual file data is stored
+- Most filesystems (ext4) use 15 pointers:
+  - 12 direct pointers (point directly to data blocks)
+  - 1 single indirect pointer : points to a block that contains more pointers.
+  - 1 double indirect pointer : a pointer to a block that contains indirect blocks.
+  - 1 triple indirect pointer : layers on layers — allows files to grow into gigabytes or terabytes.
+- Can use `ls -i` to see inode number of files.
+- Linux preallocates a fixed number of inodes when creating a filesystem. -> Can run out of inodes -> cant create new files even if there’s free disk space.
+**Links:**
+- In Linux, everything is a file — and every file is just an **inode** with one or more **names** pointing to it.
+These names are called links.
+- Two types of links:
+  1. **Hard links**: multiple names point to the same inode. Cannot span filesystems or link to directories.
+  2. **Symbolic links (symlinks)**: special files that point to another file by name. Can span filesystems and link to directories. Basically shortcuts.
